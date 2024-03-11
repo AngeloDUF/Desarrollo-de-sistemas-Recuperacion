@@ -39,59 +39,62 @@ def process_text(text):
 # Asegúrate de que todas las importaciones necesarias estén al principio del archivo
 
 def main():
+    # CSS para personalizar la apariencia de tu aplicación Streamlit
+
+    st.markdown("""
+        <style>
+        .stApp {
+            background-color: #ADD8E6; /* Fondo azul pastel */
+            font-family: 'Lobster', cursive; /* Cambia la fuente a Lobster */
+        }
+        .stTextInput>div>div>input, .stTextArea>div>div>textarea {
+            font-family: 'Comic Sans MS'; /* Asegura que los inputs y textareas usen la nueva fuente */
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
     st.title("Preguntas sobre HTMLs, XMLs, PDFs y Texto Ingresado")
-    # Configuración del cargador de archivos para aceptar archivos HTML, XML y PDF
+
+    # Añadir soporte para cargar imágenes
+    image_file = st.file_uploader("Carga una imagen", type=["jpg", "png", "jpeg"])
+    if image_file is not None:
+        st.image(image_file, caption='Imagen cargada')
+
     html_xml_pdf_files = st.file_uploader("Sube tus archivos HTML, XML o PDF", type=["html", "xml", "pdf"], accept_multiple_files=True)
     
-    # Área para ingreso de texto manual por el usuario
     user_text = st.text_area("O ingresa tu texto aquí para hacerle preguntas", height=150)
     
-    text = user_text + "\n"  # Inicia con el texto ingresado por el usuario, si lo hay
-
+    text = user_text + "\n"
     if html_xml_pdf_files is not None and len(html_xml_pdf_files) > 0:
         for file in html_xml_pdf_files:
             if file.type == "application/pdf":
-                # Procesamiento de archivos PDF
                 reader = PdfReader(file)
                 for page in reader.pages:
                     text += page.extract_text() + "\n\n"
             else:
                 file_content = file.getvalue().decode("utf-8", errors='replace')
-                # Procesamiento de archivos HTML
                 if file.type == "text/html":
                     soup = BeautifulSoup(file_content, 'html.parser')
                     text += soup.get_text(separator="\n", strip=True) + "\n\n"
-                # Procesamiento de archivos XML
                 elif file.type == "text/xml":
                     root = ET.fromstring(file_content)
                     for elem in root.iter():
                         if elem.text:
                             text += elem.text.strip() + "\n"
 
-    if text.strip():  # Procesa el texto si hay algo que procesar
+    if text.strip():
         knowledgeBase = process_text(text)
 
-    # Interfaz para la entrada de preguntas por parte del usuario
     query = st.text_input('Escribe tu pregunta sobre el texto ingresado o los archivos subidos...')
-    cancel_button = st.button('Cancelar')  # Botón para cancelar operación
-
-    if cancel_button:
-        st.stop()  # Finaliza la ejecución
-
-    if query and text.strip():  # Asegura que haya texto sobre el cual preguntar
-        # Realiza búsqueda de similitud con la base de conocimientos
+    if query and text.strip():
         docs = knowledgeBase.similarity_search(query)
-      
-        # Configuración del modelo de lenguaje y parámetros de respuesta
         model = "gpt-3.5-turbo-instruct"
         temperature = 0
         llm = OpenAI(openai_api_key=os.environ.get("OPENAI_API_KEY"), model_name=model, temperature=temperature)
-      
-        # Carga y ejecución de la cadena de preguntas y respuestas
         chain = load_qa_chain(llm, chain_type="stuff")
         with get_openai_callback() as cost:
             response = chain.invoke(input={"question": query, "input_documents": docs})
-            st.write(response["output_text"])  # Muestra respuesta en la interfaz
+            st.write(response["output_text"])
 
 if __name__== "__main__":
     main()
